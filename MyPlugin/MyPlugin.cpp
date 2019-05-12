@@ -6,20 +6,20 @@
 
 #define PLUGIN_EXPORTS
 
-BOOL APIENTRY DllMain( HANDLE hModule, 
-                       DWORD  ul_reason_for_call, 
-                       LPVOID lpReserved
-					 )
+BOOL APIENTRY DllMain(HANDLE hModule,
+	DWORD  ul_reason_for_call,
+	LPVOID lpReserved
+)
 {
-    switch (ul_reason_for_call)
+	switch (ul_reason_for_call)
 	{
-		case DLL_PROCESS_ATTACH:
-		case DLL_THREAD_ATTACH:
-		case DLL_THREAD_DETACH:
-		case DLL_PROCESS_DETACH:
-			break;
-    }
-    return TRUE;
+	case DLL_PROCESS_ATTACH:
+	case DLL_THREAD_ATTACH:
+	case DLL_THREAD_DETACH:
+	case DLL_PROCESS_DETACH:
+		break;
+	}
+	return TRUE;
 }
 
 PDATAIOFUNC	 g_pFuncCallBack;
@@ -30,131 +30,108 @@ void RegisterDataInterface(PDATAIOFUNC pfn)
 	g_pFuncCallBack = pfn;
 }
 
+
+
 //注册插件信息
 void GetCopyRightInfo(LPPLUGIN info)
 {
 	//填写基本信息
-	strcpy(info->Name,"两MA线穿越");
-	strcpy(info->Dy,"武汉");
-	strcpy(info->Author,"系统");
-	strcpy(info->Period,"短线");
-	strcpy(info->Descript,"两MA线穿越");
-	strcpy(info->OtherInfo,"自定义天数两MA线金叉穿越");
-	//填写参数信息
-	info->ParamNum = 2;
-	strcpy(info->ParamInfo[0].acParaName,"MA天数1");
-	info->ParamInfo[0].nMax=1;
-	info->ParamInfo[0].nMax=1000;
-	info->ParamInfo[0].nDefault=13;
-	strcpy(info->ParamInfo[1].acParaName,"MA天数2");
-	info->ParamInfo[1].nMax=1;
-	info->ParamInfo[1].nMax=1000;
-	info->ParamInfo[1].nDefault=30;
+	strcpy(info->Name, "三一股");
+	strcpy(info->Dy, "Wenling");
+	strcpy(info->Author, "IDAO");
+	strcpy(info->Period, "隔日交易");
+	strcpy(info->Descript, "0.日K曾涨停（standonDailyLimit）1.昨日收阴/十字星（yesterdaySafe） 2.历史重要颈线位");
+	strcpy(info->OtherInfo, "自定义");
+	//填写参数信息 考虑用参数表示想要选择的三一股的强弱
+
+	info->ParamNum = 1;
+	strcpy(info->ParamInfo[0].acParaName, "日K考察范围（3天-200天）");
+	info->ParamInfo[0].nMax = 3;
+	info->ParamInfo[0].nMax = 200;
+	info->ParamInfo[0].nDefault = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 //自定义实现细节函数(可根据选股需要添加)
 
-const	BYTE	g_nAvoidMask[]={0xF8,0xF8,0xF8,0xF8};	// 无效数据标志(系统定义)
+const	BYTE	g_nAvoidMask[] = { 0xF8,0xF8,0xF8,0xF8 };	// 无效数据标志(系统定义)
 
-WORD   AfxRightData(float*pData,WORD nMaxData)	//获取有效数据位置
-{	
-	for(WORD nIndex=0;nIndex<nMaxData&&!memcmp(&pData[nIndex],g_nAvoidMask,4);nIndex++);
-	return(nIndex);
-}
 
-void   AfxCalcMa(float*pData,long nData,WORD nParam)
-{	
-	if(pData==NULL||nData==0||nParam==1) return;
-	long i=nData-nParam+1,nMinEx=AfxRightData(pData,nData);
-	if(nParam==0||nParam+nMinEx>nData) nMinEx=nData;
-	else
-	{	
-		float	nDataEx=0,nDataSave=0;
-		float	*MaPtr=pData+nData-1,*DataPtr=pData+nData-nParam;
-		for(nMinEx+=nParam-1;i<nData;nDataEx+=pData[i++]);
-		for(i=nData-1;i>=nMinEx;i--,MaPtr--,DataPtr--)
-		{
-			nDataEx+=(*DataPtr);
-			nDataSave=(*MaPtr);
-			*MaPtr=nDataEx/nParam;
-			nDataEx-=nDataSave;
+BOOL standOnDailyLimit(float* price, long max) {
+	float lowest = 100;
+	for (int i = 0; i < max; i++) {
+		if (i > 0) {
+			float increase = (price[i] - price[i - 1]) / price[i - 1];
+			if (increase > 0.095) {  //判断涨停
+				lowest = price[i - 1] < lowest ? price[i - 1] : lowest;
+			}
 		}
 	}
+	if (lowest < price[max - 1]) return TRUE;
+	else return FALSE;
 }
 
-WORD   AfxCross(float*psData,float*plData,WORD nIndex,float&nCross)
-{	
-	if(psData==NULL||plData==NULL||nIndex==0) return(0);
-	float  nDif=psData[nIndex-1]-plData[nIndex-1];
-	float  nDifEx=plData[nIndex]-psData[nIndex];
-	float  nRatio=(nDif+nDifEx)?nDif/(nDif+nDifEx):0;
-	nCross=psData[nIndex-1]+(psData[nIndex]-psData[nIndex-1])*nRatio;
-	if(nDif<0&&nDifEx<0)	return(1);
-	if(nDif>0&&nDifEx>0)	return(2);
-	return(0);
-}
-
-BOOL InputInfoThenCalc1(char * Code,short nSetCode,int Value[4],short DataType,short nDataNum,BYTE nTQ,unsigned long unused) //按最近数据计算
-{
-	BOOL nRet = FALSE;
-	NTime tmpTime={0};
-
-	LPHISDAT pHisDat = new HISDAT[nDataNum];  //数据缓冲区
-	long readnum = g_pFuncCallBack(Code,nSetCode,DataType,pHisDat,nDataNum,tmpTime,tmpTime,nTQ,0);  //利用回调函数申请数据，返回得到的数据个数
-	if( readnum > max(Value[0],Value[1]) ) //只有数据个数大于Value[0]和Value[1]中的最大值才有意义
-	{
-		float *pMa1 = new float[readnum];
-		float *pMa2 = new float[readnum];
-		for(int i=0;i < readnum;i++)
-		{
-			pMa1[i] = pHisDat[i].Close;
-			pMa2[i] = pHisDat[i].Close;
-		}
-		AfxCalcMa(pMa1,readnum,Value[0]);	//计算MA
-		AfxCalcMa(pMa2,readnum,Value[1]);
-		float nCross;
-		if(AfxCross(pMa1,pMa2,readnum-1,nCross) == 1)	//判断是不是在readnum-1(最后一个数据)处交叉 1:上穿 2:下穿
-			nRet = TRUE;  //返回为真，符合选股条件
-		delete []pMa1;pMa1=NULL;
-		delete []pMa2;pMa2=NULL;
-	}
-
-	delete []pHisDat;pHisDat=NULL;
-	return nRet;
-}
-
-BOOL InputInfoThenCalc2(char * Code,short nSetCode,int Value[4],short DataType,NTime time1,NTime time2,BYTE nTQ,unsigned long unused)  //选取区段
-{
-	BOOL nRet = FALSE;
-	NTime tmpTime={0};
-
-	//窥视数据个数
-	long datanum = g_pFuncCallBack(Code,nSetCode,DataType,NULL,-1,time1,time2,nTQ,0);
-	if( datanum < max(Value[0],Value[1]) ) 
+//60分钟周期安全，定量定义十字星
+BOOL yesterdaySafe(HISDAT pHisDat) {
+	// 昨日收阳3个点且未冲高回落，不符
+	if (pHisDat.Close > pHisDat.Open * 1.03 && !pHisDat.High < pHisDat.Open * 1.07) {
 		return FALSE;
-	
-	//读取数据
-	LPHISDAT pHisDat = new HISDAT[datanum];
-	long readnum = g_pFuncCallBack(Code,nSetCode,DataType,pHisDat,datanum,time1,time2,nTQ,0);
-	if( readnum > max(Value[0],Value[1]) ) //只有将数据个数大于Value[0]和Value[1]中的最大值才有意义
+	}
+	return TRUE;
+}
+
+Neckline calcNeckline(float* price, long max) {
+	// 记录每一个拐点(考虑使用递归，区分出横向盘整情况）
+	// 横向盘整处形成颈线
+	// 目前以5个点以上且两天以上的单向走势作为有效走势
+	Neckline possiblePoint, neckline;
+	float rised = 0;
+	float maxP = price[0];
+	float minP = price[0];
+	// 计算拐点和最大最小值
+	for (int i = 1; i < max; i++)
 	{
-		float *pMa1 = new float[readnum];
-		float *pMa2 = new float[readnum];
-		for(int i=0;i < readnum;i++)
-		{
-			pMa1[i] = pHisDat[i].Close;
-			pMa2[i] = pHisDat[i].Close;
+		if (rised * (price[i] - price[i - 1]) < 0) {
+			possiblePoint.price[possiblePoint.index] = price[i - 1];
+			possiblePoint.index++;
 		}
-		AfxCalcMa(pMa1,readnum,Value[0]);	//计算MA
-		AfxCalcMa(pMa2,readnum,Value[1]);
-		float nCross;
-		if(AfxCross(pMa1,pMa2,readnum-1,nCross) == 1)	//判断是不是在readnum-1(最后一个数据)处交叉 1:上穿 2:下穿
-			nRet = TRUE;
-		delete []pMa1;pMa1=NULL;
-		delete []pMa2;pMa2=NULL;
+		rised = price[i] - price[i - 1];
+		maxP = maxP > price[i] ? maxP : price[i];
+		minP = minP < price[i] ? minP : price[i];
+	}
+	// 考虑使用neckline数组
+	for (int i = 0; i < 20; i++) {
+		float assumeP = maxP - (maxP - minP) * i / 20;
+		float upperBound = assumeP * 1.01;
+		float lowerBound = assumeP * 0.99;
+		for (int j = 0; j <= possiblePoint.index; j++) {
+
+		}
+	}
+}
+
+
+BOOL InputInfoThenCalc1(char* Code, short nSetCode, int Value[4], short DataType, short nDataNum, BYTE nTQ, unsigned long unused) //按最近数据计算
+{
+	BOOL nRet = FALSE;
+	NTime tmpTime = { 0 };
+	BOOL condition[2];// index说明对应description
+	LPHISDAT pHisDat = new HISDAT[nDataNum];  //数据缓冲区 每个hisdat为一根k线的所有信息
+	long readnum = g_pFuncCallBack(Code, nSetCode, DataType, pHisDat, nDataNum, tmpTime, tmpTime, nTQ, 0);  //利用回调函数申请数据，返回得到的数据个数
+	if (readnum > max(Value[0], Value[1])) //只有数据个数大于Value[0]和Value[1]中的最大值才有意义
+	{
+		float* price = new float[readnum];
+		for (int i = 0; i < readnum; i++) //将收盘价导入数组
+		{
+			price[i] = pHisDat[i].Close;
+		}
+
+		condition[0] = standOnDailyLimit(price, readnum);
+		condition[1] = yesterdaySafe(pHisDat[readnum - 1]);
+		
 	}
 
-	delete []pHisDat;pHisDat=NULL;
+	if (condition[0] || condition[1]) nRet = TRUE;
+	delete[]pHisDat; pHisDat = NULL;
 	return nRet;
 }

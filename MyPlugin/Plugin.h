@@ -15,6 +15,13 @@
 
 #pragma pack(push,1)
 
+//vector
+typedef struct vector
+{
+	float price[200];
+	int index = 0;
+}Neckline;
+
 typedef struct tag_PluginPara	//参数信息的结构定义
 {
 	char  acParaName[14];		//参数的中文名称
