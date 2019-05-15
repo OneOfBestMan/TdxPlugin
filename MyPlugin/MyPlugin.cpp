@@ -3,6 +3,8 @@
 
 #include "stdafx.h"
 #include "plugin.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #define PLUGIN_EXPORTS
 
@@ -99,16 +101,31 @@ Neckline calcNeckline(float* price, long max) {
 		maxP = maxP > price[i] ? maxP : price[i];
 		minP = minP < price[i] ? minP : price[i];
 	}
-	// 考虑使用neckline数组
+
+	// neckline to iterate through possible turning point
+	// magic number to be fixed. 1. areas:20  2. amplitude:0.01
 	for (int i = 0; i < 20; i++) {
 		float assumeP = maxP - (maxP - minP) * i / 20;
 		float upperBound = assumeP * 1.01;
 		float lowerBound = assumeP * 0.99;
 		for (int j = 0; j <= possiblePoint.index; j++) {
-
+            appendLine(&neckline, assumeP);
 		}
 	}
+
+	//
 }
+
+// append new line at the end, or increase the num of corresponding line
+void appendLine(Neckline *neckline, assumeP) {
+    for (int i = 0; i < neckline->index; i++) {
+        if (abs(neckline->neck_price[i] - assumeP) < 0.000001) {
+            neckline->neck_price_num[i]++;
+        }
+    }
+}
+
+
 
 
 BOOL InputInfoThenCalc1(char* Code, short nSetCode, int Value[4], short DataType, short nDataNum, BYTE nTQ, unsigned long unused) //按最近数据计算
