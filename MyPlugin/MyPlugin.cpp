@@ -82,14 +82,28 @@ BOOL yesterdaySafe(HISDAT pHisDat) {
     return TRUE;
 }
 
+// append new line at the end, or increase the num of corresponding line
+void appendLine(Neckline *neckline,float assumeP) {
+    for (int i = 0; i < neckline->index; i++) {
+        if (abs(neckline->neck_price[i] - assumeP) < 0.000001) {
+            neckline->neck_price_num[i]++;
+            return;
+        }
+    }
+    neckline->index++;
+    neckline->neck_price[index]=assumeP;
+
+}
+
 Neckline calcNeckline(float* price, long max) {
     // 记录每一个拐点(考虑使用递归，区分出横向盘整情况）
     // 横向盘整处形成颈线
     // 目前以5个点以上且两天以上的单向走势作为有效走势
-    Neckline possiblePoint, neckline;
+    Neckline possiblePoint, neckline, returnNeckline;
     float rised = 0;
     float maxP = price[0];
     float minP = price[0];
+
     // 计算拐点和最大最小值
     for (int i = 1; i < max; i++)
     {
@@ -113,19 +127,23 @@ Neckline calcNeckline(float* price, long max) {
         }
     }
 
-    //
-}
-
-// append new line at the end, or increase the num of corresponding line
-void appendLine(Neckline *neckline, assumeP) {
-    for (int i = 0; i < neckline->index; i++) {
-        if (abs(neckline->neck_price[i] - assumeP) < 0.000001) {
-            neckline->neck_price_num[i]++;
+    for (int i = 0; i < neckline.index;i++) {
+        if(neckline.neck_price_amount > 5) {  // 5: min num of turning point falls on neckline
+            appendLine(&returnNeckline, neckline.neck_price);
         }
     }
+    return returnNeckline;
 }
 
 
+BOOL yesterdayOnNeckline(float *price,long max) {
+    Neckline neckline = calcNeckline(price, max);
+    for (int i = 0;i < neckline.index; i++) {
+        if (price[max-1] < price[i]*1.01 && price[max-1] > price[i]* 0.99)
+            return TRUE;
+    }
+    return FALSE;
+}
 
 
 BOOL InputInfoThenCalc1(char* Code, short nSetCode, int Value[4], short DataType, short nDataNum, BYTE nTQ, unsigned long unused) //按最近数据计算
@@ -145,6 +163,7 @@ BOOL InputInfoThenCalc1(char* Code, short nSetCode, int Value[4], short DataType
 
         condition[0] = standOnDailyLimit(price, readnum);
         condition[1] = yesterdaySafe(pHisDat[readnum - 1]);
+
 
     }
 
