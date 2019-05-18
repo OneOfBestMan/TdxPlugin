@@ -85,13 +85,13 @@ BOOL yesterdaySafe(HISDAT pHisDat) {
 // append new line at the end, or increase the num of corresponding line
 void appendLine(Neckline *neckline,float assumeP) {
     for (int i = 0; i < neckline->index; i++) {
-        if (abs(neckline->neck_price[i] - assumeP) < 0.000001) {
-            neckline->neck_price_num[i]++;
+        if (neckline->neck_price[i] - assumeP < 0.000001 && neckline->price[i] - assumeP > -0.000001) {
+            neckline->neck_price_amount[i]++;
             return;
         }
     }
     neckline->index++;
-    neckline->neck_price[index]=assumeP;
+    neckline->neck_price[neckline->index]=assumeP;
 
 }
 
@@ -128,8 +128,8 @@ Neckline calcNeckline(float* price, long max) {
     }
 
     for (int i = 0; i < neckline.index;i++) {
-        if(neckline.neck_price_amount > 5) {  // 5: min num of turning point falls on neckline
-            appendLine(&returnNeckline, neckline.neck_price);
+        if(neckline.neck_price_amount[i] > 5) {  // 5: min num of turning point falls on neckline
+            appendLine(&returnNeckline, neckline.neck_price[i]);
         }
     }
     return returnNeckline;
