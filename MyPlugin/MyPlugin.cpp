@@ -163,7 +163,7 @@ BOOL InputInfoThenCalc1(char* Code, short nSetCode, int Value[4], short DataType
 
         condition[0] = standOnDailyLimit(price, readnum);
         condition[1] = yesterdaySafe(pHisDat[readnum - 1]);
-
+        condition[2] = yesterdayOnNeckline(price, readnum);
 
     }
 
